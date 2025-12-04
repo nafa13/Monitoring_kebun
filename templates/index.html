@@ -60,7 +60,12 @@
 
     <header>
         <h1><i class="fas fa-leaf"></i> AgriMonitor</h1>
-        <div class="status"><span class="live-indicator"></span> Connected to Flask</div>
+        <div class="status">
+    <a href="/logout" style="color: #ff5252; text-decoration: none; margin-right: 15px; font-weight: bold;">
+        <i class="fas fa-sign-out-alt"></i> Logout
+    </a>
+    <span class="live-indicator"></span> Connected
+</div>
     </header>
 
     <div class="container">
@@ -198,13 +203,3 @@
 </html>
 ```
 
-### Cara Menjalankan Aplikasi
-
-1.  Buka terminal/command prompt.
-2.  Install Flask jika belum ada:
-    ```bash
-    pip install flask
-    ```
-3.  Jalankan aplikasi:
-    ```bash
-    python app.py
