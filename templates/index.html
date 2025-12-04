@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitoring Smart Garden</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #0d0d0d;
+            --card-bg: #1a1a1a;
+            --primary-green: #00e676;
+            --text-color: #e0e0e0;
+            --text-muted: #888;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-color); }
+
+        header {
+            background-color: var(--card-bg);
+            padding: 20px;
+            border-bottom: 2px solid var(--primary-green);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        header h1 { color: var(--primary-green); letter-spacing: 2px; }
+
+        .container { max-width: 1200px; margin: 20px auto; padding: 0 20px; }
+        .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+
+        .card {
+            background-color: var(--card-bg); border-radius: 12px; padding: 20px;
+            border: 1px solid #333; transition: 0.3s;
+        }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .card-icon { font-size: 1.5rem; color: var(--primary-green); background: rgba(0, 230, 118, 0.1); padding: 10px; border-radius: 50%; }
+        .card-value { font-size: 2.5rem; font-weight: bold; color: #fff; }
+        .card-unit { font-size: 1rem; color: var(--primary-green); }
+
+        /* Switch Toggle Styles */
+        .switch-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        .switch { position: relative; display: inline-block; width: 50px; height: 24px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--primary-green); }
+        input:checked + .slider:before { transform: translateX(26px); }
+
+        .chart-container { grid-column: span 1; }
+        @media (min-width: 768px) { .chart-container { grid-column: span 2; } }
+        canvas { width: 100% !important; height: 300px !important; }
+
+        .live-indicator { display: inline-block; width: 10px; height: 10px; background-color: var(--primary-green); border-radius: 50%; animation: blink 1.5s infinite; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1><i class="fas fa-leaf"></i> AgriMonitor</h1>
+        <div class="status"><span class="live-indicator"></span> Connected to Flask</div>
+    </header>
+
+    <div class="container">
+        <div class="dashboard-grid">
+            
+            <!-- Sensor Cards -->
+            <div class="card">
+                <div class="card-header"><span class="card-title">Kelembapan Tanah</span><i class="fas fa-water card-icon"></i></div>
+                <div><span class="card-value" id="soil-val">--</span><span class="card-unit">%</span></div>
+            </div>
+
+            <div class="card">
+                <div class="card-header"><span class="card-title">Suhu Udara</span><i class="fas fa-thermometer-half card-icon"></i></div>
+                <div><span class="card-value" id="temp-val">--</span><span class="card-unit">°C</span></div>
+            </div>
+
+            <div class="card">
+                <div class="card-header"><span class="card-title">Kelembapan Udara</span><i class="fas fa-cloud card-icon"></i></div>
+                <div><span class="card-value" id="hum-val">--</span><span class="card-unit">%</span></div>
+            </div>
+
+            <!-- Controls -->
+            <div class="card control-panel">
+                <div class="card-header"><span class="card-title">Kontrol</span><i class="fas fa-cogs card-icon"></i></div>
+                
+                <div class="switch-container">
+                    <span><i class="fas fa-tint"></i> Pompa Air</span>
+                    <label class="switch">
+                        <input type="checkbox" id="btn-pump" onchange="toggleDevice('pump')">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="switch-container">
+                    <span><i class="fas fa-lightbulb"></i> Lampu Grow</span>
+                    <label class="switch">
+                        <input type="checkbox" id="btn-light" onchange="toggleDevice('light')">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="switch-container">
+                    <span><i class="fas fa-fan"></i> Kipas</span>
+                    <label class="switch">
+                        <input type="checkbox" id="btn-fan" onchange="toggleDevice('fan')">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Chart -->
+            <div class="card chart-container">
+                <div class="card-header"><span class="card-title">Live Grafik Kelembapan</span></div>
+                <canvas id="soilChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 1. Setup Chart
+        const ctx = document.getElementById('soilChart').getContext('2d');
+        const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+        gradient.addColorStop(0, 'rgba(0, 230, 118, 0.5)');
+        gradient.addColorStop(1, 'rgba(0, 230, 118, 0)');
+
+        const soilChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [], // Waktu akan diisi otomatis
+                datasets: [{
+                    label: 'Kelembapan Tanah (%)',
+                    data: [],
+                    borderColor: '#00e676', backgroundColor: gradient, borderWidth: 2, fill: true, tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { labels: { color: '#e0e0e0' } } },
+                scales: {
+                    x: { ticks: { color: '#888' }, grid: { color: '#333' } },
+                    y: { beginAtZero: true, max: 100, ticks: { color: '#888' }, grid: { color: '#333' } }
+                }
+            }
+        });
+
+        // 2. Fungsi Fetch Data dari Flask (GET)
+        async function fetchSensorData() {
+            try {
+                const response = await fetch('/api/sensors');
+                const data = await response.json();
+
+                // Update Angka di Kartu
+                document.getElementById('soil-val').innerText = data.soil_moisture;
+                document.getElementById('temp-val').innerText = data.temperature;
+                document.getElementById('hum-val').innerText = data.humidity;
+
+                // Update Grafik (Geser data lama jika sudah penuh)
+                const now = new Date().toLocaleTimeString();
+                if (soilChart.data.labels.length > 10) {
+                    soilChart.data.labels.shift();
+                    soilChart.data.datasets[0].data.shift();
+                }
+                soilChart.data.labels.push(now);
+                soilChart.data.datasets[0].data.push(data.soil_moisture);
+                soilChart.update();
+
+            } catch (error) {
+                console.error("Gagal mengambil data:", error);
+            }
+        }
+
+        // 3. Fungsi Kirim Perintah ke Flask (POST)
+        async function toggleDevice(deviceName) {
+            const checkbox = document.getElementById('btn-' + deviceName);
+            const isChecked = checkbox.checked;
+
+            try {
+                const response = await fetch('/api/control', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ device: deviceName, state: isChecked })
+                });
+                const result = await response.json();
+                console.log(result.message || "Switch Updated");
+            } catch (error) {
+                console.error("Error toggle:", error);
+                // Kembalikan posisi tombol jika gagal (opsional)
+                checkbox.checked = !isChecked; 
+            }
+        }
+
+        // Jalankan fetch data setiap 2 detik
+        setInterval(fetchSensorData, 2000);
+        fetchSensorData(); // Panggil sekali saat load
+    </script>
+</body>
+</html>
+```
+
+### Cara Menjalankan Aplikasi
+
+1.  Buka terminal/command prompt.
+2.  Install Flask jika belum ada:
+    ```bash
+    pip install flask
+    ```
+3.  Jalankan aplikasi:
+    ```bash
+    python app.py
