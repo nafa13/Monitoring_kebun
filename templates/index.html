@@ -40,11 +40,11 @@
         .card-unit { font-size: 1rem; color: var(--primary-green); }
 
         /* Switch Toggle Styles */
-        .switch-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px; }
-        .switch { position: relative; display: inline-block; width: 50px; height: 24px; }
+        .switch-container { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; }
+        .switch { position: relative; display: inline-block; width: 60px; height: 34px; }
         .switch input { opacity: 0; width: 0; height: 0; }
         .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; transition: .4s; border-radius: 34px; }
-        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+        .slider:before { position: absolute; content: ""; height: 26px; width: 26px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
         input:checked + .slider { background-color: var(--primary-green); }
         input:checked + .slider:before { transform: translateX(26px); }
 
@@ -61,17 +61,16 @@
     <header>
         <h1><i class="fas fa-leaf"></i> AgriMonitor</h1>
         <div class="status">
-    <a href="/logout" style="color: #ff5252; text-decoration: none; margin-right: 15px; font-weight: bold;">
-        <i class="fas fa-sign-out-alt"></i> Logout
-    </a>
-    <span class="live-indicator"></span> Connected
-</div>
+            <a href="/logout" style="color: #ff5252; text-decoration: none; margin-right: 15px; font-weight: bold;">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </a>
+            <span class="live-indicator"></span> Connected
+        </div>
     </header>
 
     <div class="container">
         <div class="dashboard-grid">
             
-            <!-- Sensor Cards -->
             <div class="card">
                 <div class="card-header"><span class="card-title">Kelembapan Tanah</span><i class="fas fa-water card-icon"></i></div>
                 <div><span class="card-value" id="soil-val">--</span><span class="card-unit">%</span></div>
@@ -87,8 +86,19 @@
                 <div><span class="card-value" id="hum-val">--</span><span class="card-unit">%</span></div>
             </div>
 
+            <div class="card">
+                <div class="card-header"><span class="card-title">Kontrol Perangkat</span><i class="fas fa-cogs card-icon"></i></div>
+                
+                <div class="switch-container">
+                    <span style="font-size: 1.1rem; font-weight: bold;">Pompa Air</span>
+                    <label class="switch">
+                        <input type="checkbox" id="btn-pump" onclick="toggleDevice('pump')">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                
+                </div>
 
-            <!-- Chart -->
             <div class="card chart-container">
                 <div class="card-header"><span class="card-title">Live Grafik Kelembapan</span></div>
                 <canvas id="soilChart"></canvas>
@@ -106,7 +116,7 @@
         const soilChart = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: [], // Waktu akan diisi otomatis
+                labels: [], 
                 datasets: [{
                     label: 'Kelembapan Tanah (%)',
                     data: [],
@@ -129,12 +139,21 @@
                 const response = await fetch('/api/sensors');
                 const data = await response.json();
 
-                // Update Angka di Kartu
+                // Update Angka Sensor
                 document.getElementById('soil-val').innerText = data.soil_moisture;
                 document.getElementById('temp-val').innerText = data.temperature;
                 document.getElementById('hum-val').innerText = data.humidity;
 
-                // Update Grafik (Geser data lama jika sudah penuh)
+                // === UPDATE STATUS TOMBOL DARI SERVER (BARU) ===
+                if (data.devices) {
+                    // Cek status pompa dari server, update checkbox biar sinkron
+                    const pumpBtn = document.getElementById('btn-pump');
+                    if (pumpBtn) {
+                        pumpBtn.checked = data.devices.pump;
+                    }
+                }
+
+                // Update Grafik
                 const now = new Date().toLocaleTimeString();
                 if (soilChart.data.labels.length > 10) {
                     soilChart.data.labels.shift();
@@ -154,6 +173,8 @@
             const checkbox = document.getElementById('btn-' + deviceName);
             const isChecked = checkbox.checked;
 
+            console.log(`Mengubah ${deviceName} menjadi ${isChecked ? 'ON' : 'OFF'}`);
+
             try {
                 const response = await fetch('/api/control', {
                     method: 'POST',
@@ -161,10 +182,10 @@
                     body: JSON.stringify({ device: deviceName, state: isChecked })
                 });
                 const result = await response.json();
-                console.log(result.message || "Switch Updated");
+                console.log(result.message || "Switch Updated Success");
             } catch (error) {
                 console.error("Error toggle:", error);
-                // Kembalikan posisi tombol jika gagal (opsional)
+                // Kembalikan posisi tombol jika gagal
                 checkbox.checked = !isChecked; 
             }
         }
@@ -175,5 +196,3 @@
     </script>
 </body>
 </html>
-```
-
